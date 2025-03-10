@@ -32,6 +32,11 @@ class _PlansListScreenState extends State<PlansListScreen> {
   void initState() {
     super.initState();
     dbHelper = DatabaseHelper();
+    _initializeDatabase();
+  }
+
+  Future<void> _initializeDatabase() async {
+    await dbHelper.init();
     _loadPlans();
   }
 
@@ -49,6 +54,32 @@ class _PlansListScreenState extends State<PlansListScreen> {
         return CreatePlanModal(dbHelper: dbHelper, reloadPlans: _loadPlans);
       },
     );
+  }
+
+  Future<void> _markAsCompleted(int id) async {
+    await dbHelper.update({
+      DatabaseHelper.columnId: id,
+      DatabaseHelper.columnCompleted: 1,
+    });
+    _loadPlans();  // Reload plans after update
+  }
+
+  Future<void> _editPlan(Map<String, dynamic> plan) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return EditPlanModal(
+          dbHelper: dbHelper,
+          plan: plan,
+          reloadPlans: _loadPlans,
+        );
+      },
+    );
+  }
+
+  Future<void> _deletePlan(int id) async {
+    await dbHelper.delete(id);
+    _loadPlans();  // Reload plans after deletion
   }
 
   @override
@@ -71,16 +102,34 @@ class _PlansListScreenState extends State<PlansListScreen> {
                 itemBuilder: (context, index) {
                   final record = records[index];
                   final isCompleted = record['completed'] == 1;
-                  return Container(
-                    color: isCompleted ? Colors.green[100] : Colors.transparent,
-                    child: ListTile(
-                      title: Text(
-                        record['name'],
-                        style: TextStyle(
-                          decoration: isCompleted ? TextDecoration.lineThrough : null,
-                        ),
-                      ),
-                      subtitle: Text("Description: ${record['plan_desc']}"),
+
+                  return GestureDetector(
+                    onLongPress: () => _editPlan(record), // Long press to edit
+                    onDoubleTap: () => _deletePlan(record['id']), // Double-tap to delete
+                    child: Builder(
+                      builder: (context) {
+                        // We need to wrap the ListTile with a GestureDetector for swipe handling
+                        return GestureDetector(
+                          onHorizontalDragUpdate: (details) {
+                            if (details.primaryDelta! < 0) {
+                              // Swipe left gesture detected
+                              _markAsCompleted(record['id']);
+                            }
+                          },
+                          child: Container(
+                            color: isCompleted ? Colors.green[100] : Colors.transparent,
+                            child: ListTile(
+                              title: Text(
+                                record['name'],
+                                style: TextStyle(
+                                  decoration: isCompleted ? TextDecoration.lineThrough : null,
+                                ),
+                              ),
+                              subtitle: Text("Description: ${record['plan_desc']}"),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   );
                 },
